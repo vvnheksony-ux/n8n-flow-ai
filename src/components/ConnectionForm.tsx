@@ -5,7 +5,7 @@ import { Server, CheckCircle, XCircle, Loader2 } from 'lucide-react';
 import type { N8nConnection } from '@/lib/types';
 
 interface ConnectionFormProps {
-  onConnect: (connection: N8nConnection) => Promise<boolean>;
+  onConnect: (connection: N8nConnection) => Promise<{ success: boolean; error?: string }>;
   isConnected: boolean;
 }
 
@@ -17,7 +17,7 @@ export default function ConnectionForm({ onConnect, isConnected }: ConnectionFor
 
   const handleTest = async () => {
     if (!host || !apiKey) return;
-    
+
     setIsTesting(true);
     setTestResult(null);
 
@@ -27,14 +27,14 @@ export default function ConnectionForm({ onConnect, isConnected }: ConnectionFor
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ host, apiKey }),
       });
-      
+
       const data = await res.json();
       setTestResult({
         success: res.ok,
         message: data.message || (res.ok ? 'Connection successful!' : 'Connection failed'),
       });
-    } catch {
-      setTestResult({ success: false, message: 'Failed to connect' });
+    } catch (err: any) {
+      setTestResult({ success: false, message: `Failed to connect: ${err.message || 'Network error'}` });
     } finally {
       setIsTesting(false);
     }
@@ -42,13 +42,16 @@ export default function ConnectionForm({ onConnect, isConnected }: ConnectionFor
 
   const handleConnect = async () => {
     if (!host || !apiKey) return;
-    
+
     setIsTesting(true);
-    const success = await onConnect({ host, apiKey });
+    setTestResult(null);
+    const result = await onConnect({ host, apiKey });
     setIsTesting(false);
-    
-    if (success) {
+
+    if (result.success) {
       setTestResult({ success: true, message: 'Connected and saved!' });
+    } else {
+      setTestResult({ success: false, message: result.error || 'Connection failed' });
     }
   };
 
@@ -77,9 +80,10 @@ export default function ConnectionForm({ onConnect, isConnected }: ConnectionFor
             type="text"
             value={host}
             onChange={(e) => setHost(e.target.value)}
-            placeholder="https://your-n8n.com or http://167.71.210.87:5678"
+            placeholder="http://your-server:5678"
             className="input"
           />
+          <p className="text-[11px] text-[#555] mt-1">Use http:// for self-hosted without SSL</p>
         </div>
 
         <div>
@@ -91,18 +95,19 @@ export default function ConnectionForm({ onConnect, isConnected }: ConnectionFor
             placeholder="Enter your n8n API key"
             className="input"
           />
+          <p className="text-[11px] text-[#555] mt-1">n8n Settings &gt; API &gt; Create API Key</p>
         </div>
 
         {testResult && (
-          <div className={`flex items-center gap-2 p-3 rounded-lg ${
+          <div className={`flex items-start gap-2 p-3 rounded-lg text-sm ${
             testResult.success ? 'bg-[#10b981]/10 text-[#10b981]' : 'bg-[#ef4444]/10 text-[#ef4444]'
           }`}>
             {testResult.success ? (
-              <CheckCircle className="w-4 h-4" />
+              <CheckCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
             ) : (
-              <XCircle className="w-4 h-4" />
+              <XCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
             )}
-            <span className="text-sm">{testResult.message}</span>
+            <span className="break-all">{testResult.message}</span>
           </div>
         )}
 

@@ -44,7 +44,7 @@ export default function Home() {
     } catch (error) {
       console.error('Failed to fetch workflows:', error);
     }
-    return [];
+    return workflows;
   }, []);
 
   // Auto-refresh workflows every 15 seconds so manually created ones show up
@@ -71,7 +71,7 @@ export default function Home() {
     return null;
   };
 
-  const handleConnect = async (newConnection: N8nConnection): Promise<boolean> => {
+  const handleConnect = async (newConnection: N8nConnection): Promise<{ success: boolean; error?: string }> => {
     try {
       const res = await fetch('/api/test-connection', {
         method: 'POST',
@@ -79,22 +79,23 @@ export default function Home() {
         body: JSON.stringify(newConnection),
       });
 
+      const data = await res.json();
+
       if (res.ok) {
         setConnection(newConnection);
         setIsConnected(true);
         localStorage.setItem('n8n_connection', JSON.stringify(newConnection));
 
-        const data = await res.json();
         if (data.workflows?.data) {
           setWorkflows(data.workflows.data);
         }
 
         setShowConnectionForm(false);
-        return true;
+        return { success: true };
       }
-      return false;
-    } catch {
-      return false;
+      return { success: false, error: data.message || `Connection failed (${res.status})` };
+    } catch (err: any) {
+      return { success: false, error: err.message || 'Network error — could not reach the server' };
     }
   };
 
@@ -271,8 +272,10 @@ export default function Home() {
           break;
         }
       }
-    } catch (error) {
-      addMessage('assistant', 'Sorry, something went wrong. Please check your API key and try again.', 'chat');
+    } catch (error: any) {
+      console.error('Chat error:', error);
+      const detail = error?.message || 'Unknown error';
+      addMessage('assistant', `Something went wrong: ${detail}\n\nPossible causes:\n- Your n8n instance may not be reachable from the internet\n- The OpenAI API key on the server may be invalid\n- Your n8n API key may have expired`, 'chat');
     } finally {
       setIsProcessing(false);
     }
