@@ -156,13 +156,35 @@ export default function Home() {
         }
       }
 
-      let workflowsToSend = freshWorkflows;
+      // For normal chat: only send name/ID/active (small payload)
+      // For audit: include node names and types (medium payload)
+      let workflowsToSend: any[];
+
       if (isAuditIntent(message)) {
+        // Audit needs node info but NOT full parameters/connections
+        let detailed = freshWorkflows;
         try {
-          workflowsToSend = await fetchAllWorkflowDetails();
-        } catch {
-          // Use what we have
-        }
+          detailed = await fetchAllWorkflowDetails();
+        } catch { /* use what we have */ }
+
+        workflowsToSend = detailed.map((w: any) => ({
+          id: w.id,
+          name: w.name,
+          active: w.active,
+          nodes: (w.nodes || []).map((n: any) => ({
+            name: n.name,
+            type: n.type,
+            parameters: n.parameters ? Object.keys(n.parameters).length > 0 ? { _hasParams: true } : {} : {},
+          })),
+          connectionCount: Object.keys(w.connections || {}).length,
+        }));
+      } else {
+        // Normal chat: just name/ID/active
+        workflowsToSend = freshWorkflows.map((w: any) => ({
+          id: w.id,
+          name: w.name,
+          active: w.active,
+        }));
       }
 
       const res = await fetch('/api/chat', {
@@ -175,7 +197,7 @@ export default function Home() {
             role: m.role,
             content: m.content,
             action: m.action,
-            actionData: m.actionData,
+            // Don't send full workflow JSON in history — too large
           })),
         }),
       });
