@@ -146,15 +146,23 @@ export default function Home() {
     setIsProcessing(true);
 
     try {
-      // Always refresh workflow list before sending to AI so it has the latest
+      // Refresh workflow list (don't let failure block the chat)
       let freshWorkflows = workflows;
       if (connection) {
-        freshWorkflows = await fetchWorkflows(connection.host, connection.apiKey);
+        try {
+          freshWorkflows = await fetchWorkflows(connection.host, connection.apiKey);
+        } catch {
+          // n8n unreachable — use cached list
+        }
       }
 
       let workflowsToSend = freshWorkflows;
       if (isAuditIntent(message)) {
-        workflowsToSend = await fetchAllWorkflowDetails();
+        try {
+          workflowsToSend = await fetchAllWorkflowDetails();
+        } catch {
+          // Use what we have
+        }
       }
 
       const res = await fetch('/api/chat', {
@@ -173,6 +181,13 @@ export default function Home() {
       });
 
       const data = await res.json();
+
+      // If API returned an error, show it
+      if (!res.ok) {
+        addMessage('assistant', data.message || `Server error (${res.status})`, 'chat');
+        setIsProcessing(false);
+        return;
+      }
       const action: ChatAction = data.action || 'chat';
       const actionData: ActionData = data.data || {};
       const usage: TokenUsage | undefined = data.usage;
